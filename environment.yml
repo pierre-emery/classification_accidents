@@ -1,0 +1,19 @@
+name: accidents-env
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - numpy
+  - pandas
+  - matplotlib
+  - seaborn
+  - requests
+  - geopandas        
+  - pyproj           
+  - scikit-learn     
+  - jupyterlab>=3.0.0
+  - ipykernel
+  - ipywidgets
+  - tqdm
+  - plotly
