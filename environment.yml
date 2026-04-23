@@ -1,11 +1,16 @@
 name: accidents-env
 channels:
+  - pytorch
+  - nvidia
   - conda-forge
   - defaults
 dependencies:
   - python=3.11
   - numpy
   - pandas
+  - pytorch
+  - torchvision
+  - pytorch-cuda=12.1
   - matplotlib
   - seaborn
   - requests
