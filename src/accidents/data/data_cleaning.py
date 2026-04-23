@@ -122,63 +122,26 @@ def retype_codes(df: pd.DataFrame) -> pd.DataFrame:
     print(f"{len(COLS_CODES_CATEGORIELS)} colonnes CD_* converties en catégoriel (string)")
     return df
  
- 
-def impute_missing(df: pd.DataFrame) -> pd.DataFrame:
+
+def basic_clean_missing(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Stratégie d'imputation :
-    - Colonnes catégorielles (string/object): NaN devient catégorie "Inconnu"
-    - VITESSE_AUTOR (37% NaN) : tirage aléatoire selon la distribution par CD_CATEG_ROUTE
-      pour préserver la distribution réelle sans créer de pic artificiel
-    - HEURE (si NaN, "Non précisé") : tirage aléatoire selon la distribution réelle
-    - LOC_LONG / LOC_LAT (0.01% NaN) ici on supprime les lignes
-    Commentaire : Enfait on voulait utiliser pour VITESSE_AUTOR et HEURE simplement la valeur médiane
-    et remplacer tout les NaN par cette valeur mais ça créeait un immense pic artificiel on a donc préféré le tirage aléatoire
+    Nettoyage basique des valeurs manquantes, sans statistique apprise (évite fuite de données) :
+      - suppression des lignes avec LOC_LONG/LOC_LAT manquants (0.01% des donnees)
+      - remplacement des NaN categoriels par la constante "Inconnu"
+ 
+    Operations exclues, on les ferait plustard dans preprocessing.py apres le split :
+      - imputation de VITESSE_AUTOR par tirage aleatoire appris uniquement sur le trainning set
+      - imputation de HEURE similairement
+
     """
     n_avant = len(df)
  
+    # suppression des lignes sans coordonnees 
     df = df.dropna(subset=["LOC_LONG", "LOC_LAT"])
     n_apres_coord = len(df)
     print(f"{n_avant - n_apres_coord} lignes supprimées (coordonnées manquantes)")
  
-    # VITESSE_AUTOR : tirage aléatoire selon la distribution par catégorie de route
-    if "VITESSE_AUTOR" in df.columns:
-        n_vit_nan = df["VITESSE_AUTOR"].isna().sum()
-        rng = np.random.default_rng(seed=3795)
- 
-        if "CD_CATEG_ROUTE" in df.columns:
-            for cat, group in df.groupby("CD_CATEG_ROUTE"):
-                mask_nan = group["VITESSE_AUTOR"].isna()
-                n_to_fill = mask_nan.sum()
-                if n_to_fill == 0:
-                    continue
-                known = group["VITESSE_AUTOR"].dropna().values
-                if len(known) > 0:
-                    sampled = rng.choice(known, size=n_to_fill)
-                else:
-                    # Fallback : distribution globale
-                    sampled = rng.choice(df["VITESSE_AUTOR"].dropna().values, size=n_to_fill)
-                df.loc[mask_nan.index[mask_nan], "VITESSE_AUTOR"] = sampled
- 
-        # Fallback final pour les NaN restants (ex: CD_CATEG_ROUTE aussi manquant)
-        n_restants = df["VITESSE_AUTOR"].isna().sum()
-        if n_restants > 0:
-            known_global = df["VITESSE_AUTOR"].dropna().values
-            df.loc[df["VITESSE_AUTOR"].isna(), "VITESSE_AUTOR"] = rng.choice(
-                known_global, size=n_restants
-            )
-            print(f"VITESSE_AUTOR : {n_restants} NaN restants remplis par tirage sur la distribution globale")
- 
-        print(f"VITESSE_AUTOR : {n_vit_nan} NaN imputés (tirage aléatoire par catégorie de route)")
- 
-    # HEURE : tirage aléatoire selon la distribution réelle des heures connues
-    if "HEURE" in df.columns:
-        n_h_nan = df["HEURE"].isna().sum()
-        if n_h_nan > 0:
-            rng_h = np.random.default_rng(seed=3795)
-            known_hours = df["HEURE"].dropna().values
-            df.loc[df["HEURE"].isna(), "HEURE"] = rng_h.choice(known_hours, size=n_h_nan)
-        print(f"HEURE : {n_h_nan} NaN remplacés par tirage aléatoire selon la distribution réelle")
- 
+    # remplacement des NaN categoriels par "Inconnu" 
     cat_cols = df.select_dtypes(include=["object", "string"]).columns.tolist()
     cat_cols = [c for c in cat_cols if c != "GRAVITE"]
     for col in cat_cols:
@@ -187,10 +150,11 @@ def impute_missing(df: pd.DataFrame) -> pd.DataFrame:
             df[col] = df[col].fillna("Inconnu")
             print(f"{col} : {n_nan} NaN changé en 'Inconnu'")
  
+ 
     remaining_nan = df.isna().sum()
     remaining_nan = remaining_nan[remaining_nan > 0]
     if len(remaining_nan) > 0:
-        print(f"NaN restants :")
+        print(f"NaN restants (normaux, seront traités par preprocessing) :")
         for col, n in remaining_nan.items():
             print(f"    {col}: {n}")
     else:
@@ -257,7 +221,7 @@ def run_full_pipeline(
     df = drop_columns(df)
     df = parse_datetime(df)
     df = retype_codes(df)
-    df = impute_missing(df)
+    df = basic_clean_missing(df)
     df = drop_duplicates(df)
     df = regroup_gravite(df)
  
