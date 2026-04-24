@@ -19,7 +19,7 @@ from sklearn.metrics import pairwise_distances
 import plotly.express as px
 
 
-EMBEDDING_METHODS = ("pca", "mds", "isomap", "diffusion_map")
+EMBEDDING_METHODS = ("pca", "mds", "isomap")
 
 
 def fit_transform_embedding(

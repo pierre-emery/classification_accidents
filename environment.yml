@@ -22,3 +22,4 @@ dependencies:
   - ipywidgets
   - tqdm
   - plotly
+  - imbalanced-learn
