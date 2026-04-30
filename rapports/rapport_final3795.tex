@@ -1,0 +1,619 @@
+
+\documentclass[11pt]{article}
+ 
+% --- Encodage et langue ---
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[french]{babel}
+ 
+% --- Mise en page ---
+\usepackage[margin=1in]{geometry}
+\usepackage{setspace}
+\onehalfspacing          % interligne 1.5 — ajuster si besoin
+ 
+% --- Figures, tableaux ---
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{float}
+\usepackage{caption}
+\usepackage{subcaption}
+ 
+% --- Mathématiques ---
+\usepackage{amsmath}
+\usepackage{amssymb}
+ 
+% --- Liens hypertexte ---
+\usepackage[hidelinks]{hyperref}
+ 
+% --- Code source ---
+\usepackage{listings}
+\usepackage{xcolor}
+\lstset{
+  basicstyle=\small\ttfamily,
+  breaklines=true,
+  frame=single,
+  backgroundcolor=\color{gray!10},
+  keywordstyle=\color{blue},
+  commentstyle=\color{green!50!black},
+  stringstyle=\color{orange},
+}
+ 
+% --- Bibliographie ---
+\usepackage[backend=biber, style=numeric, sorting=none]{biblatex}
+\addbibresource{references.bib}
+% ============================================================
+\begin{document}
+ 
+% ============================================================
+%  Page de titre
+% ============================================================
+\begin{titlepage}
+  \centering
+  \vspace*{2cm}
+  {\LARGE \textbf{Analyse, regroupement et classification\\
+  des collisions routières à Montréal}\\[0.5em]}
+  \rule{\linewidth}{0.4pt}\\[1.5em]
+  {\large Rapport de projet}\\[1em]
+  {\large Fondements en sciences des données}\\[2em]
+  {\large  STT3795}\\[2em]
+
+  {\large
+  Xavier Drolet (20276341)\\
+  Benjamin Dockins (20267474)\\
+  Pierre Emery (20278920)\\[2em]}
+ 
+  {\large 30 avril 2026}
+  \vfill
+  {\large Université de Montréal}
+\end{titlepage}
+ 
+% ============================================================
+%  Table des matières
+% ============================================================
+\tableofcontents
+\newpage
+ 
+% ============================================================
+\section{Introduction}
+% ============================================================
+ 
+% TODO : Rédiger l'introduction (contexte général de la sécurité
+% routière à Montréal, importance du jeu de données ouvert, etc.)
+%
+% Pistes à développer :
+%  - Contexte sociétal : accidents de la route, blessés, décès à Mtl
+%  - Disponibilité des données ouvertes de la Ville de Montréal
+%  - Pertinence de l'apprentissage automatique pour ce domaine
+ 
+La sécurité routière constitue un enjeu majeur pour les villes modernes.
+À Montréal, les collisions routières occasionnent chaque année de nombreux
+blessés et des dommages matériels considérables.
+% [COMPLÉTER : statistiques récentes sur les accidents à Montréal]
+ 
+La Ville de Montréal met à disposition un jeu de données ouvert recensant
+l'ensemble des collisions signalées sur son territoire depuis 2012 ~\cite{donnees_mtl}.
+Ce jeu de données, riche en variables spatiales, temporelles et contextuelles,
+offre un terrain particulièrement propice à l'application de méthodes
+d'apprentissage automatique supervisées et non supervisées.
+ 
+% [COMPLÉTER : transition vers la présentation du rapport]
+ 
+ 
+% ============================================================
+\section{Objectifs}
+% ============================================================
+ 
+Il y a deux objectifs qui sont poursuivis dans ce projet, en premier lieu on veut identifier différents profils de collisions à Montréal en regroupant les
+accidents selon leurs caractéristiques communes : contexte spatial, moment de survenue, conditions environnementales et type d'accident.
+Il s'agit d'évaluer dans quelle mesure des méthodes de regroupement permettent de faire ressortir des structures naturelles dans les données. D'autre part, il y aussi un travail de classification supervisé, le but est de prédire la gravité d'une collision à partir de ses attributs.
+Nous souhaitons comparer plusieurs approches afin de déterminer lesquelles
+sont les mieux adaptées à ce type de données.
+ 
+%\textbf{Objectif 3 — Prédiction spatiale.}
+%Si le temps le permet, modéliser la probabilité de collision grave selon
+%la localisation géographique afin d'identifier les zones les plus
+%dangereuses du réseau routier montréalais.
+ 
+ 
+% ============================================================
+\section{Description des données}
+% ============================================================
+ 
+\subsection{Source et structures des données}
+ 
+Les données proviennent du jeu de données ouvert de la Ville de Montréal sur les collisions routières~\cite{donnees_mtl}, accessible à
+l'adresse \url{https://donnees.montreal.ca/dataset/collisions-routieres}. 
+% Un second jeu de données portant sur le comptage de véhicules, piétons et
+% cyclistes~\cite{comptage_mtl} pourrait également être intégré pour enrichir
+% certaines analyses. 
+ 
+Le jeu de données brut compte 218\,272 entrées et 68 colonnes couvrant la période 2012--2021.
+Chaque entrée correspond à une collision individuelle. Les variables se répartissent en plusieurs catégories :
+ 
+\begin{itemize}
+  \item {Variables temporelles :} date (\texttt{DT\_ACCDN}),
+        heure (\texttt{HEURE\_ACCDN}), jour de la semaine
+        (\texttt{JR\_SEMN\_ACCDN}), année (\texttt{AN}).
+  \item {Variables spatiales :} coordonnées géographiques
+        (\texttt{LOC\_LAT}, \texttt{LOC\_LONG}), numéro civique,
+        nom de rue, région administrative, code municipal.
+  \item {Variables contextuelles et environnementales :}
+        conditions météorologiques (\texttt{CD\_COND\_METEO}),
+        état de la chaussée (\texttt{CD\_ETAT\_SURFC}),
+        éclairage (\texttt{CD\_ECLRM}),
+        configuration de la route (\texttt{CD\_CONFG\_ROUTE}),
+        vitesse autorisée (\texttt{VITESSE\_AUTOR}), etc.
+  \item {Variable cible :} gravité de la collision
+        (\texttt{GRAVITE}), avec cinq niveaux d'origine.
+\end{itemize}
+ 
+\subsection{Prétraitement et nettoyage des données}
+\label{preprocess}
+ 
+Le nettoyage des données a été réalisé en plusieurs étapes successives,
+implémentées dans le module \texttt{data\_cleaning.py}.
+ 
+\subsubsection{Suppression de colonnes}
+ 
+Trois catégories de colonnes ont été retirées du jeu de données.
+ 
+\paragraph{Colonnes avec trop de valeurs manquantes.}
+Dix colonnes présentant plus de 60\,\% de valeurs manquantes ont été
+supprimées, car leur imputation aurait introduit trop d'incertitude :
+\texttt{BORNE\_KM\_ACCDN}, \texttt{CD\_PNT\_CDRNL\_ROUTE},
+\texttt{SFX\_NO\_CIVIQ\_ACCDN}, \texttt{NO\_ROUTE},
+\texttt{CD\_ZON\_TRAVX\_ROUTR}, \texttt{CD\_SIT\_PRTCE\_ACCDN},
+\texttt{CD\_POSI\_ACCDN}, \texttt{CD\_ETAT\_CHASS},
+\texttt{NB\_METRE\_DIST\_ACCD} et \texttt{CD\_PNT\_CDRNL\_REPRR}.
+ 
+\paragraph{Colonnes d'identification et textuelles.}
+Six colonnes jugées sans valeur analytique ont également été retirées :
+l'identifiant unique de collision (\texttt{NO\_SEQ\_COLL}),
+le code municipal redondant avec la région administrative
+(\texttt{CD\_MUNCP}), le numéro civique trop granulaire
+(\texttt{NO\_CIVIQ\_ACCDN}, 57\,\% de valeurs manquantes),
+le nom de rue (\texttt{RUE\_ACCDN}, trop de valeurs uniques),
+l'intersection proche (\texttt{ACCDN\_PRES\_DE}, texte libre,
+33\,\% de NaN) et le type de repère (\texttt{TP\_REPRR\_ACCDN},
+38\,\% de NaN, peu informatif).
+ 
+\paragraph{Colonnes redondantes.}
+Les colonnes \texttt{LOC\_X} et \texttt{LOC\_Y} ont été supprimées
+car elles sont redondantes avec \texttt{LOC\_LONG} et \texttt{LOC\_LAT}.
+ 
+\subsubsection{Traitement des variables temporelles}
+ 
+La colonne \texttt{DT\_ACCDN} (format \texttt{YYYY/MM/DD}) a été
+transformée en deux nouvelles variables : le mois (\texttt{MOIS},
+entier de 1 à 12) et la saison (\texttt{SAISON} : Hiver, Printemps,
+Été, Automne). La colonne \texttt{HEURE\_ACCDN}, encodée sous forme
+de plages horaires (ex. \texttt{"02:00:00-02:59:00"}) ou de la valeur
+\texttt{"Non précisé"}, a été convertie en entier représentant
+l'heure de début (0--23). Les colonnes sources ont ensuite été supprimées.
+ 
+\subsubsection{Retypage des codes catégoriels}
+ 
+Neuf colonnes de type \texttt{CD\_*} sont encodées sous forme de codes
+numériques représentant en réalité des catégories (genre d'accident,
+état de la surface, éclairage, etc.). Ces colonnes ont été converties
+de \texttt{float64} vers le type \texttt{string} afin d'éviter que les
+algorithmes d'apprentissage automatique ne les traitent comme des
+variables continues.
+ 
+\subsubsection{Imputation des valeurs manquantes}
+ 
+La stratégie d'imputation est adaptée à chaque variable.
+ 
+\paragraph{Coordonnées géographiques.}
+Puiqu'il y a très peu de lignes présentant des valeurs manquantes dans
+\texttt{LOC\_LONG} ou \texttt{LOC\_LAT}, elles ont simplement été supprimées, puisque l'effet sur le jeu de données est minime.
+ 
+\paragraph{Vitesse autorisée (\texttt{VITESSE\_AUTOR}) et l'heure (\texttt{HEURE}).}
+Dans ces deux cas, il y avait une portion considérables des valeurs de ces colonnes qui étaient manquante (37\% et ? \%). Nous pensions d'abord faire l'imputation par la médiane globale ou bien par le mode mais cette stratégie créait un pic artificiel de taille démesurée
+non représentatif de la distribution réelle. Nous avons donc opté
+pour un tirage aléatoire pondéré selon la distribution de la variable. Donc pour la vitesse autorisée, 
+au sein de chaque catégorie de route (\texttt{CD\_CATEG\_ROUTE}),
+avec un générateur aléatoire à graine fixe (\texttt{seed=3795}) pour
+la reproductibilité. En cas de catégorie de route elle-même manquante,
+la distribution globale des valeurs connues a servi de recours.
+Puis, les heures manquantes (valeurs \texttt{"Non précisé"}
+dans les données brutes) ont été imputées par tirage aléatoire selon la
+distribution empirique des heures connues.
+ 
+\paragraph{Variables catégorielles restantes.}
+Pour toutes les colonnes de type \texttt{object} ou \texttt{string}
+présentant encore des valeurs manquantes après les étapes précédentes,
+les \texttt{NaN} ont été remplacés par la catégorie \texttt{"Inconnu"},
+qui est ainsi traitée comme une modalité à part entière.
+ 
+\subsubsection{Suppression des doublons}
+ 
+Les lignes entièrement dupliquées ont été supprimées.
+ 
+\subsubsection{Regroupement de la variable cible}
+ 
+La variable \texttt{GRAVITE} comporte originellement cinq niveaux.
+Ces niveaux ont été regroupés en trois classes pour la tâche de
+classification supervisée :
+ 
+\begin{itemize}
+  \item \textbf{Grave} : regroupe \emph{Mortel} et
+        \emph{Blessures graves}.
+  \item \textbf{Léger} : correspond à \emph{Blessures légères}.
+  \item \textbf{Matériel} : regroupe \emph{Dommages matériels seulement}
+        et \emph{Dommages matériels inférieurs au seuil de rapportage}.
+\end{itemize}
+ 
+Ce regroupement se justifie par la faible représentation des accidents
+mortels et graves, qui risquerait de nuire à l'apprentissage d'un
+classifieur, et par la similarité fonctionnelle des deux sous-catégories
+de dommages matériels.
+ 
+% ============================================================
+\section{Méthodologie}
+% ============================================================
+
+ 
+L'ensemble du code et des notebooks est disponible à des fins de reproductibilité~\cite{repo_projet}.
+ 
+\subsection{Exploration des donnees}
+Une première étape d'exploration des données a été réalisée afin de mieux comprendre la structure du jeu de données brut.
+
+Cette analyse inclut :
+\begin{itemize}
+    \item l'inspection des dimensions et des types de variables,
+    \item l'analyse des valeurs manquantes par colonne,
+    \item l'étude de la distribution de la variable cible \texttt{GRAVITE},
+    \item l'analyse des variables temporelles (date, heure),
+    \item l'exploration des variables catégorielles (\texttt{CD\_*}),
+    \item l'examen des variables numériques,
+    \item la visualisation de la distribution spatiale des collisions.
+\end{itemize}
+
+Des statistiques descriptives et des visualisations (histogrammes, \textit{barplots}, \textit{heatmap}, \textit{scatter} spatial) ont été utilisées pour identifier les problèmes potentiels du dataset.
+ 
+\subsection{Nettoyage des données}
+
+Le nettoyage des données a été effectué afin d'améliorer la qualité et la cohérence du jeu de données. Ce processus est expliqué en détails dans la section~\ref{preprocess}.
+
+Les principales étapes sont :
+\begin{itemize}
+    \item suppression des colonnes contenant un pourcentage élevé de valeurs manquantes,
+    \item traitement des valeurs manquantes restantes,
+    \item transformation des variables temporelles (extraction de l'année, du mois, du jour et de l'heure),
+    \item simplification de la variable cible \texttt{GRAVITE},
+    \item encodage des variables catégorielles,
+    \item vérification et conversion des types de données.
+\end{itemize}
+
+Ces transformations permettent de rendre les données exploitables pour les étapes ultérieures de modélisation.
+
+
+\subsection{Reduction de dimension}
+Afin de faciliter l’analyse du jeu de données et d’évaluer la présence éventuelle de structures latentes, une réduction de dimension a été réalisée à l’aide de l’Analyse en Composantes Principales (ACP). \\
+
+L’ACP est appliquée aux données prétraitées et standardisées, en utilisant uniquement l’ensemble d’entraînement afin d’éviter toute fuite de données. Dans un premier temps, une projection en trois dimensions a été utilisée à des fins de visualisation. Par la suite, plusieurs niveaux de réduction ont été testés (nombre de composantes $k \in \{50, 20, 10, 5, 3\}$) afin d’évaluer l’impact de la dimensionnalité sur les performances des modèles de classification.\\
+
+D'autre méthodes à base de distances, telles que \texttt{MDS-classique} et \texttt{Isomap}, ont été testés et mis de côté à cause de la difficulté computationnelle du calcul de distances pour 218 272 individus.
+ 
+\subsection{Regroupement (clustering)}
+
+Deux algorithmes de clustering ont été comparés afin d'identifier les
+structures naturelles dans les données (si elles existent). L’algorithme des k-moyennes (\texttt{K-means}) a été retenu, avec un nombre de groupes fixé à $k=3$, correspondant aux trois classes de gravité considérées. DBSCAN a également été appliqué (avec $eps = 4$ et $min\_samples = 5$), afin de comparer une approche
+basée sur la distance aux centroïdes à une approche basée sur la densité
+locale.
+
+Les performances du clustering ont été évaluées à l’aide de plusieurs métriques complémentaires :
+\begin{itemize}
+    \item l’Adjusted Rand Index (ARI),
+    \item l’Adjusted Mutual Information (AMI),
+    \item l’homogénéité,
+    \item le coefficient de silhouette.
+\end{itemize}
+
+Ces métriques permettent d’évaluer à la fois la cohérence interne des groupes formés et leur correspondance avec les classes réelles.
+
+L’algorithme est appliqué sur les données prétraitées, sans utilisation des étiquettes lors de l’apprentissage, conformément au cadre non supervisé.
+ 
+\subsection{Classification supervisée}
+
+ Plusieurs modèles de classification supervisée ont été comparés afin de prédire la gravité d’une collision à partir de ses caractéristiques.
+Le jeu de données a été séparé en ensembles d’entraînement, de validation et de test, en conservant les proportions de classes grâce à un échantillonnage stratifié. L’évaluation des modèles repose principalement sur l’ensemble de validation.
+
+Les modèles suivants ont été considérés :
+\begin{itemize}
+    \item classifieurs de référence (Dummy Classifier),
+    \item Naive Bayes gaussien,
+    \item SVM linéaire,
+    \item arbre de décision,
+    \item forêts aléatoires,
+\end{itemize}
+
+Les performances sont mesurées à l’aide de l’accuracy, ainsi que des métriques précision, rappel et score F1. En raison de la faible proportion de collisions graves ($<1\%$) trouvée dans les données, plusieurs stratégies ont été explorées pour atténuer ce déséquilibre :
+\begin{itemize}
+    \item aucune correction (\textit{baseline}),
+    \item pondération des classes (\texttt{class\_weight='balanced'}),
+    \item sur-échantillonnage de la classe minoritaire via \texttt{SMOTE}.
+\end{itemize}
+ 
+% ============================================================
+\section{Résultats}
+% ============================================================
+ 
+% TODO : Présenter les résultats de chaque méthode.
+% Cette section peut inclure des tentatives infructueuses.
+\subsection{Résultats de l'exploration}
+
+L’analyse exploratoire met en évidence plusieurs caractéristiques structurantes du jeu de données.
+
+Tout d’abord, la visualisation des valeurs manquantes par colonne montre une forte hétérogénéité.
+Certaines variables présentent un taux de données manquantes extrêmement élevé (souvent supérieur à 90\%), comme \texttt{BORNE\_KM\_ACCDN} ou \texttt{NO\_ROUTE}, ce qui indique qu’elles sont peu exploitables en l’état. À l’inverse, d’autres variables clés, notamment les coordonnées géographiques (\texttt{LOC\_LAT}, \texttt{LOC\_LONG}), sont quasiment complètes, ce qui constitue un point fort du dataset. 
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.5\linewidth]{variables_manquantes.png}
+    \caption{Pourcentage de valeurs manquantes par colonne dans le jeu de données brut. La ligne rouge marque le seuil de 60,\% au-delà duquel les colonnes ont été supprimées.}
+    \label{fig:placeholder}
+\end{figure}
+L’analyse de la variable cible \texttt{GRAVITE}, illustrée par les graphiques de distribution (\textit{barplot} et diagramme circulaire), révèle un déséquilibre marqué. Les accidents impliquant uniquement des dommages matériels dominent largement (près de 80\% si on regroupe les deux catégories matérielles), tandis que les accidents graves et mortels représentent une proportion très faible. Cette distribution suggère que certaines classes seront difficiles à prédire et nécessiteront une attention particulière lors de la modélisation. \\
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{visualisation_gravite.png}
+    \caption{Distribution des cinq niveaux d'origine de la variable cible \texttt{GRAVITE} (effectifs et proportions). Les accidents matériels dominent largement.}
+    \label{fig:placeholder}
+\end{figure}
+
+Les graphiques temporels montrent que le nombre de collisions reste relativement stable entre 2012 et 2018, avant de diminuer à partir de 2019. Cette baisse peut être liée à des facteurs externes (notamment les changements de mobilité), et devra être prise en compte dans l’interprétation des résultats. \\
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{repartition_annuelle.png}
+    \caption{Évolution annuelle du nombre de collisions entre 2012 et 2021.}
+    \label{fig:placeholder}
+\end{figure}
+
+L’étude de la répartition de la gravité par heure met en évidence une certaine stabilité des proportions au cours de la journée, avec une prédominance constante des accidents matériels. Toutefois, on observe une légère augmentation relative des accidents légers à certaines heures, ce qui pourrait refléter des variations de trafic. \\
+
+De même, la répartition par saison indique des différences modestes mais perceptibles, notamment une proportion légèrement plus élevée d’accidents légers en été, possiblement liée à une augmentation des déplacements.
+Les variables catégorielles codées (\texttt{CD\_*}) présentent des distributions très concentrées sur quelques modalités dominantes. Cela suggère que certaines catégories sont largement majoritaires, tandis que d’autres sont très peu représentées, ce qui peut limiter leur pouvoir explicatif. \\
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{gravité_collision.png}
+    \caption{Répartition de la gravité par heure (gauche) et saison (droite)}
+    \label{fig:placeholder}
+\end{figure}
+
+Enfin, la visualisation spatiale des collisions montre une forte concentration des points le long du réseau routier principal de Montréal, avec une densité plus élevée dans les zones urbaines centrales. Cette structure cohérente confirme la qualité des données géographiques et leur pertinence pour une analyse spatiale. \\
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.55\linewidth]{analyse_spatiale.png}
+    \caption{Distribution spatiale des collisions sur le territoire de Montréal}
+    \label{fig:placeholder}
+\end{figure}
+
+\subsection{Résultats du nettoyage}
+
+Le processus de nettoyage a permis d'améliorer significativement la qualité et la structure du jeu de données, tout en conservant l’essentiel de l’information. \\
+
+La comparaison avant/après montre que le nombre de colonnes a été réduit de 68 à 52. Cette diminution s’explique principalement par la suppression de variables contenant un trop grand nombre de valeurs manquantes, identifiées lors de l’analyse exploratoire. En revanche, le nombre de lignes reste quasiment inchangé, avec moins de $0.1\%$ des observations supprimées, ce qui indique que peu de données ont été jugées totalement inutilisables. \\
+
+L'un des effets les plus marquants du nettoyage concerne les valeurs manquantes : le nombre de colonnes contenant des \texttt{NaN} est passé de 32 avant nettoyage à seulement 2 après traitement. Cette réduction drastique était nécessaire, car des méthodes comme l'ACP ne tolèrent pas les valeurs manquantes et n'auraient pas pu être appliquées sur le jeu de données brut. Plus généralement, cette amélioration de la complétude facilite l'utilisation du \textit{dataset} dans la plupart des modèles statistiques et d'apprentissage automatique.
+
+Il est aussi important de préciser que les deux colonnes présentant encore des valeurs manquantes après nettoyage (\texttt{VITESSE\_AUTOR} et \texttt{HEURE}) sont volontairement conservées dans cet état à ce stade. Leur imputation par tirage aléatoire pondéré, décrite à la section d'imputation des valeurs manquantes, est en effet appliquée après le découpage en ensembles d'entraînement, validation et test, afin que la distribution utilisée pour le tirage soit calculée uniquement à partir de l'ensemble d'entraînement. Cette précaution évite toute fuite d'information de la validation ou du test vers le modèle, ce qui aurait biaisé les performances rapportées. \\
+
+La transformation des types de données est également notable. Avant nettoyage, un grand nombre de variables catégorielles étaient encodées sous forme numérique (\texttt{float64}), ce qui pouvait prêter à confusion. Après traitement, ces variables sont soit correctement encodées, soit transformées en types plus adaptés, ce qui améliore la cohérence globale du dataset. \\
+
+La variable cible \texttt{GRAVITE} a été simplifiée en regroupant certaines classes peu représentées. Cette transformation permet de réduire le déséquilibre observé initialement et de rendre la variable plus adaptée à une tâche de classification. \\
+
+Les variables temporelles ont été transformées en composantes numériques (année, mois, jour, heure, saison), permettant une meilleure exploitation des tendances temporelles observées précédemment. \\
+
+Enfin, la distribution spatiale des données reste inchangée après nettoyage, ce qui indique que les transformations appliquées n’ont pas altéré la structure géographique du dataset. Cela garantit que les analyses spatiales ultérieures resteront pertinentes. \\
+
+Dans l’ensemble, le nettoyage a permis de transformer un jeu de données bruité et partiellement incomplet en un ensemble structuré, cohérent et directement exploitable pour les étapes de modélisation. \\
+ 
+\subsection{Réduction de dimension}
+
+ La projection des données dans un espace de dimension réduite par ACP ne met pas en évidence une séparation nette entre les différentes classes de gravité.
+ 
+La visualisation tridimensionnelle montre une forte superposition des observations appartenant aux classes \textit{Matériel}, \textit{Léger} et \textit{Grave}. Le manque de structure distincte suggère que les variables disponibles ne permettent pas de faire des differences claire sur les niveaux de gravité dans un espace linéaire autant réduit ($k=3$).
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\textwidth]{pca.png}
+    \caption{Projection PCA 3D des collisions colorées par niveau de gravité. 
+    On observe une forte superposition des trois classes, sans frontière 
+    nette entre elles.}
+    \label{fig:pca3d}
+\end{figure}
+
+Ces observations nous laissent donc imaginer que le clustering et la classification auront donc du mal a reconnaitre et/ou distinguer notre classe minoritaire.
+
+\subsection{Regroupement}
+ Étant donné l'absence de séparation visible en ACP, on s'attend à ce que les méthodes de clustering peinent à retrouver les classes de gravité. C'est effectivement ce qu'on observe.\\
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lcccc}
+\hline
+Méthode & ARI & AMI & Homogénéité & Silhouette \\
+\hline
+K-moyennes & -0.010 & 0.009 & 0.011 &  0.071 \\
+DBSCAN     &  0.023 & 0.035 & 0.061 & -0.269 \\
+\hline
+\end{tabular}
+\caption{Performances des méthodes de clustering sur l'ensemble de validation.}
+\label{tab:clustering}
+\end{table}
+
+Les métriques d’évaluation sont toutes très faibles (ARI et AMI proches de zéro, pas très homogènes), ce qui signifie que les groupes formés ne correspondent pas aux classes réelles de gravité. De plus, le score de silhouette reste faible, ce qui signifie une séparation minimale entre les clusters
+
+
+
+Ces résultats confirment les observations présentés par l’ACP en 3 dimensions : les collisions ne se répartissent pas naturellement en groupes distincts selon leur gravité.
+\\
+Ainsi, la gravité d’un accident semble dépendre de facteurs complexes et potentiellement non capturés par les variables du jeu de données, ce qui limite l’efficacité des méthodes de regroupement non supervisé, donc celle qu'on a pu voir ici
+ 
+\subsection{Classification supervisée}
+Les premiers résultats obtenus avec les classifieurs de référence mettent en évidence l’impact important du déséquilibre de classes. Le modèle majoritaire atteint une \textit{accuracy} élevée ($\simeq78\%$), sans jamais prédire une autre classe de \texttt{GRAVITE} que \textit{Matériel}, la classe majoritaire.
+Les modèles plus avancés (SVM, arbre de décision, forêts aléatoires) améliorent légèrement les performances globales, avec une \textit{accuracy} de $84\%$. Cependant, cette amélioration se concentre principalement sur la classe majoritaire \textit{Matériel}.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lc}
+\hline
+Modèle & Accuracy (validation) \\
+\hline
+Dummy (majorité)   & 0.780 \\
+Dummy (stratifié)  & 0.654 \\
+GaussianNB         & 0.069 \\
+Decision Tree      & 0.841 \\
+SVM linéaire       & 0.841 \\
+Random Forest      & 0.842 \\
+\hline
+\end{tabular}
+\caption{\textit{Accuracy} sur l'ensemble de validation des modèles de 
+classification, sans correction du déséquilibre des classes.}
+\label{tab:baseline}
+\end{table}
+
+On observe que le Gaussian Naive Bayes (GaussianNB) obtient des 
+performances catastrophiques (accuracy de 0.069), bien inférieures même 
+au classifieur aléatoire stratifié. Ce résultat s'explique par le fait que GaussianNB suppose que les variables suivent une distribution normale (gaussienne) à l'intérieur de chaque classe. Or notre jeu de données est composé en grande majorité de variables catégorielles encodées sous forme numérique, qui ne respectent évidemment pas cette hypothèse. Pour cette 
+raison, GaussianNB a été écarté pour la suite des analyses et n'a pas 
+été évalué sur l'ensemble de test.
+
+L’analyse des matrices de confusion montre que la classe \textit{Grave} est très rarement prédite correctement, quel que soit le modèle utilisé. Le rappel associé à cette classe reste proche de zéro dans la plupart des cas, ce qui indique une incapacité des modèles à détecter efficacement les cas rares.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{confusion_3x3.png}
+    \caption{Matrices de confusion pour SVM (ligne du haut) et Random Forest 
+    (ligne du bas), sous trois stratégies de gestion du déséquilibre. La 
+    classe \textit{Grave} reste mal détectée dans toutes les configurations, 
+    avec une amélioration notable uniquement pour SVM + SMOTE 
+    (144 vrais positifs Grave) au prix d'une chute de l'\textit{accuracy} globale.}
+    \label{fig:confusion_grille}
+\end{figure}
+
+
+L’introduction de stratégies pour corriger le déséquilibre permet d’améliorer légèrement la détection des classes minoritaires. L’utilisation de pondérations de classes (\texttt{class\_weight}) et de la méthode \texttt{SMOTE} conduit à une augmentation du rappel pour la classe \textit{Grave}, au prix d’une légère diminution de l’accuracy globale.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{llcccc}
+\hline
+Stratégie & Modèle & Accuracy & Balanced Acc. & F1 macro & F1 \textit{Grave} \\
+\hline
+Aucune   & GaussianNB    & 0.069 & 0.359 & 0.060 & 0.020 \\
+Aucune   & SVM           & 0.841 & 0.454 & 0.473 & 0.000 \\
+Aucune   & Random Forest & \textbf{0.842} & 0.460 & 0.479 & 0.000 \\
+\hline
+Balanced & GaussianNB    & 0.068 & 0.358 & 0.060 & 0.020 \\
+Balanced & SVM           & 0.824 & 0.517 & 0.522 & \textbf{0.126} \\
+Balanced & Random Forest & 0.839 & 0.453 & 0.474 & 0.010 \\
+\hline
+SMOTE    & GaussianNB    & 0.141 & 0.378 & 0.113 & 0.021 \\
+SMOTE    & SVM           & 0.689 & \textbf{0.630 }& 0.446 & 0.103 \\
+SMOTE    & Random Forest & 0.834 & 0.467 & \textbf{0.484 }& 0.019 \\
+\hline
+\end{tabular}
+\caption{Comparaison des stratégies de gestion du déséquilibre. 
+Le score F1 sur la classe \textit{Grave} illustre le compromis entre 
+\textit{accuracy} globale et capacité à détecter la classe minoritaire.}
+\label{tab:strategies}
+\end{table}
+
+Sur la base de ces résultats sur l'ensemble de validation, nous avons retenu deux modèles pour l'évaluation finale sur l'ensemble de test : Random Forest (meilleure accuracy globale) et SVM linéaire avec rééquilibrage (meilleur compromis sur la classe minoritaire).
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lcccc}
+\hline
+Modèle & Accuracy & Balanced Acc. & F1 macro & F1 Grave \\
+\hline
+Random Forest (sans correction)         & 0.842 & 0.462 & 0.480 & 0.000 \\
+SVM (\texttt{class\_weight='balanced'}) & 0.824 & 0.518 & 0.520 & 0.115 \\
+\hline
+\end{tabular}
+\caption{Performances finales sur l'ensemble de test}
+\label{tab:test}
+\end{table}
+
+Les performances obtenues sur le test sont remarquablement cohérentes 
+avec celles observées en validation, avec des écarts inférieurs à un 
+point de pourcentage sur l'ensemble des métriques.
+
+ 
+% ============================================================
+\section{Conclusion et discussion}
+% ============================================================
+ 
+% TODO : Synthétiser ce qui a fonctionné et ce qui n'a pas fonctionné.
+% Discuter des limites (déséquilibre des classes, qualité des données,
+% variables manquantes). Proposer des directions futures.
+ 
+% Pistes possibles :
+%  - Intégration du jeu de données de comptage de véhicules/piétons
+%  - Modèle de prédiction spatiale (objectif 3)
+%  - Features supplémentaires (météo externe, densité de population)
+%  - Méthodes d'ensemble (XGBoost, Random Forest avec tuning)
+Ce projet visait à explorer le jeu de données ouvert des collisions routières de la Ville de Montréal à travers deux objectifs principaux : identifier des profils naturels de collisions par regroupement non supervisé et prédire la gravité d'une collision à partir de ses attributs par classification supervisée,
+
+\subsection{Bilan des résultats et limitations}
+L'analyse en composantes principales et le regroupement par k-moyennes n'ont pas permis de mettre en évidence une structure naturelle marquée qui séparerait les collisions selon leur gravité dans l'espace des variables disponibles. Les métriques d'évaluation très faible (ARI et AMI proche de zéro) confirment cette observation. Deux explications, non exclusives, peuvent être avancées.
+
+D'une part, ce résultat met en évidence une limite intrinsèque du jeu de données: les variables disponibles décrivent essentiellement le contexte d'une collision (lieu, moment, conditions environnementales, type de route). Le problème est que la gravité d'un accident dépend largement de facteurs qui ne sont pas enregistrés dans les données utilisée (tel que la vitesse au moment de l'impact, le port de la ceinture, la qualité de la réaction d'urgence, etc.) Sans ces informations il est difficile de faire émerger des regroupements naturels qui correspondraient aux niveaux de gravité.
+
+D'autre part, il reste possible qu'une structure existe mais que les méthodes employées n'aient pas su la capter.\\
+
+La classification supervisée a donné des résultats plus exploitables, mais avec d'importantes nuances. Les modèles ayant les meilleurs résultats (SVM, forêts aléatoires) atteignent une précision d'environ 84\,\%, mais cette performance masque une incapacité à détecter les accidents graves, qui représentent moins de 1\,\% des observations. Le déséquilibre des classes est extrême et constitue un obstacle fondamental qu'aucune des techniques explorées n'a permis de surmonter pleinement, en effet les stratégies de rééquilibrage améliorent nettement le rappel sur la classe minoritaire, sauf qu'aucune ne s'est révélée pleinement satisfaisante puisque le nombre de faux positifs devient très élevé et donc la précision globale chute de manière conséquente.
+
+\subsection{Pistes d'amélioration}
+
+Plusieurs directions pourraient être explorées dans la continuité de ce travail. L'utilisation de méthodes d'ensemble plus sophistiquées (XGBoost, LightGBM) ou bien une recherche d'hyperparamètres approfondie pourraient améliorer les performances, Autremenet, l'enrichissement du jeu de données en intégrant des sources externes (comptage de véhicules et de piétons aux intersections, données météorologique détailles, densité de population par secteur) pourrait fournir l'information nécessaire pour faire ressortir les classes minoritaires.
+Enfin l'objectif optionnel initialement proposé de prédiction spatiale des zones à risque élevé n'a pas été exploré, mais reste une piste intéressante. 
+ 
+% ============================================================
+\section{Contributions des membres de l'équipe}
+% ============================================================
+ 
+\paragraph{Xavier Drolet (20276341).}
+
+Travail collaboratif avec Pierre pour l’implémentation du nettoyage des données. Modélisation complète (analyse ACP, \textit{clustering} et classificateurs) des données. Révision du rapport.
+ 
+\paragraph{Benjamin Dockins (20267474).}
+Travail sur l'analyse post-implémentation des données et l'analyse de la méthodologie. Révision du code pour assurer la cohérence entre le rapport et la modélisation. Auteur principal du rapport.
+
+\paragraph{Pierre Emery (20278920).}
+Acquisition du jeu de données. Travail collaboratif avec Xavier sur le 
+nettoyage, le prétraitement et l'imputation des valeurs manquantes. 
+Implémentation des stratégies de gestion du déséquilibre et participation à la 
+rédaction du rapport.
+ 
+ 
+% ============================================================
+% ============================================================
+\printbibliography
+ 
+\end{document}
+ 
+% ============================================================
+%  Exemple de fichier references.bib à créer :
+% ============================================================
+%
+% @misc{donnees_mtl,
+%   author       = {{Ville de Montréal}},
+%   title        = {Collisions routières},
+%   year         = {2024},
+%   howpublished = {\url{https://donnees.montreal.ca/dataset/collisions-routieres}},
+%   note         = {Consulté le [DATE]}
+% }
+%
+% @misc{comptage_mtl,
+%   author       = {{Ville de Montréal}},
+%   title        = {Comptage de véhicules, piétons et cyclistes},
+%   year         = {2024},
+%   howpublished = {\url{https://donnees.montreal.ca/dataset/comptage-vehicules-pietons}},
+%   note         = {Consulté le [DATE]}
+% }
+ 
+%https://www.overleaf.com/project/69d81228c1bfc4c35f4bfa31#
