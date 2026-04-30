@@ -15,6 +15,7 @@
 ```bash
    conda env create --file environment.yml
    conda activate accidents-env
+   pip install -e .
 ```
 
 3. Lancez JupyterLab :
